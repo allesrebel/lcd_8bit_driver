@@ -54,14 +54,19 @@ int main(void) {
 	WDTCTL = WDTPW | WDTHOLD;	// Stop watchdog timer
 
 	//Check If 16MHz cali data exists
-	if (CALBC1_16MHZ == 0xFF || CALDCO_16MHZ == 0xFF) {
+	if (CALBC1_1MHZ == 0xFF || CALDCO_1MHZ == 0xFF) {
 		return 0;
 	}
-	// Set DCO to 16MHz
-	BCSCTL1 = CALBC1_16MHZ;
-	DCOCTL = CALDCO_16MHZ;
 
-	return 0;
+	// Set DCO to 16MHz
+	BCSCTL1 = CALBC1_1MHZ;
+	DCOCTL = CALDCO_1MHZ;
+
+	lcd_init();
+
+	while(1){
+		;
+	}
 }
 
 /*
@@ -104,7 +109,7 @@ void lcd_instWrite(char data) {
 	//Set both (RS and R/W) to (0,0)
 	P2OUT &= (~RS) & (~RW);
 	//Set the output register to data
-	P1OUT |= data;
+	P1OUT = data;
 
 	//resulting command is
 	//	RS	RW	DB
@@ -135,8 +140,8 @@ void lcd_sendEnable() {
 /*
  * lcd_isbusy - Busy Check
  * 	Params - int* ACaddr, passes the location of Address counter if given (optional)
- * 	Returns true if busy!
- * 	Return false if ready for next instruction!
+ * 	Returns int true if busy!
+ * 				false if ready for next instruction!
  */
 int lcd_isbusy() {
 	char input = lcd_readBFandAC();
@@ -156,5 +161,38 @@ int lcd_isbusy() {
  *	TODO: allow passing in options to set them (bitwise maybe)
  */
 void lcd_init() {
+	//Wait for LCD to start up (~30ms)
+	__delay_cycles(30000);
 
+	//send FunctionSet cmd with 2 line mode and display on (00 0011 11XX)
+	lcd_instWrite(0x3C);
+
+	//wait until device is ready for next command
+	while (lcd_isbusy() == true) {
+		;
+	}
+
+	//send Display ON/OFF command with display on, cursor on, blink on (00 0000 1111)
+	lcd_instWrite(0x0F);
+
+	//wait until device is ready for next command
+	while (lcd_isbusy() == true) {
+		;
+	}
+
+	//send DisplayClear cmd (00 0000 0001)
+	lcd_instWrite(0x01);
+
+	//wait until device is ready for next command
+	while (lcd_isbusy() == true) {
+		;
+	}
+
+	//send EntryModeSet cmd with increment on, entire shift on (00 0000 0111)
+	lcd_instWrite(0x07);
+
+	//wait until device is ready for next command
+	while (lcd_isbusy() == true) {
+		;
+	}
 }
