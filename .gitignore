@@ -28,3 +28,4 @@ targetConfigs/*
 .ccsproject
 .project
 Debug/*
+.launches/*
