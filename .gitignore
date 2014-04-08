@@ -27,3 +27,4 @@ targetConfigs/*
 .cproject
 .ccsproject
 .project
+Debug/*
