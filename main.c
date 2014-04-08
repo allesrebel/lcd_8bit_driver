@@ -92,12 +92,26 @@ char lcd_readBFandAC() {
  * 	lcd controller.
  *
  * 	param - char of the data bus
+ * 		-note bits for char should be like:
+ * 			D7 D6 ... D0
  */
 void lcd_instWrite(char data) {
 	// Set direction of Pins (both RS, R/W as outputs)
 	P2DIR |= RS | RW;
 	// Set Direction of DataBus pins (D0 - D7) to output
 	P1DIR |= DB;
+
+	//Set both (RS and R/W) to (0,0)
+	P2OUT &= (~RS) & (~RW);
+	//Set the output register to data
+	P1OUT |= data;
+
+	//resulting command is
+	//	RS	RW	DB
+	//	0	0	data(7 -> 0)
+
+	//Send the command to the LCD display
+	lcd_sendEnable();
 }
 
 /*
