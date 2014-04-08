@@ -29,3 +29,4 @@ targetConfigs/*
 .project
 Debug/*
 .launches/*
+Release/*
