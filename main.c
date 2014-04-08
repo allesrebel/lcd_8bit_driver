@@ -45,7 +45,9 @@ char lcd_dataRead();
 
 //Derived Functions
 void lcd_init();
+void lcd_print(char* string);
 int lcd_isbusy();
+void lcd_setCursor(int x, int y);
 
 /*
  * main.c
@@ -58,19 +60,92 @@ int main(void) {
 		return 0;
 	}
 
-	// Set DCO to 16MHz
+	// Set DCO to 1MHz
 	BCSCTL1 = CALBC1_1MHZ;
 	DCOCTL = CALDCO_1MHZ;
 
 	lcd_init();
 
-	while(1){
+	lcd_print("Hello");
+
+	lcd_setCursor(0,1);
+
+	lcd_print("World!!!");
+
+
+	while (1) {
 		;
 	}
 }
 
 /*
- * lcd_readBFandAC - Core Function that
+ * lcd_setcursor - set the location for the cursor
+ * 	params int x - x location of desired location
+ * 	params int y - y location of desired location
+ *
+ * 	here's what screen looks like:
+ * 		x->
+ * 		y (0,0) (0,1) (0,2) ... (0, 16)
+ * 		| (1,0) (1,1) (1,2) ... (1, 16)
+ * 		v
+ */
+void lcd_setCursor(int x, int y){
+	//TODO: make this less hacky
+	if(y == 0){
+		//top row
+
+		//force cursor to top left
+		lcd_instWrite(0x80);
+
+		//shift over required spaces
+		while (x < 0){
+			lcd_instWrite(0x14);
+			--x;
+		}
+	}
+	else{
+		//bottom row
+
+		//force cursor to top left
+		lcd_instWrite(0xC0);
+
+		//shift over required spaces
+		while (x < 0){
+			lcd_instWrite(0x14);
+			--x;
+		}
+	}
+}
+
+/*
+ * lcd_dataWrite - Core Function
+ * 	Writes the data given to ram of lcd
+ */
+void lcd_dataWrite(char data) {
+	// Set direction of Pins (both RS, R/W as outputs)
+	P2DIR |= RS | RW;
+	// Set Direction of DataBus pins (D0 - D7) to output
+	P1DIR |= DB;
+
+	//Set (RS and R/W) to (1,0)
+	P2OUT |= RS;
+	P2OUT &= (~RW);
+	//Set the output register to data
+	P1OUT = data;
+
+	//resulting command is
+	//	RS	RW	DB
+	//	1	0	data(7 -> 0)
+
+	//Send the command to the LCD controller
+	lcd_sendEnable();
+
+	//wait 50us for command to process
+	__delay_cycles(50);
+}
+
+/*
+ * lcd_readBFandAC - Core Function
  * 	Reads the Busy flag and along with where the
  * 	address counter is currently at.
  * 	returns - char with BF | AC 6 downto 0
@@ -85,14 +160,17 @@ char lcd_readBFandAC() {
 	P2OUT &= (~RS);
 	P2OUT |= RW;
 
-	//Let LCD Process Command
+	//Let LCD Process Controller
 	lcd_sendEnable();
+
+	//wait 50us for command to process
+	__delay_cycles(50);
 
 	return P1IN;
 }
 
 /*
- * lcd_instWrite - Core Function that
+ * lcd_instWrite - Core Function
  * 	Writes to the instruction register of the
  * 	lcd controller.
  *
@@ -117,6 +195,9 @@ void lcd_instWrite(char data) {
 
 	//Send the command to the LCD display
 	lcd_sendEnable();
+
+	//wait 50us for command to process
+	__delay_cycles(50);
 }
 
 /*
@@ -130,8 +211,8 @@ void lcd_sendEnable() {
 	//Set Enable to output logical HIGH
 	P2OUT |= EN;
 
-	//Hold for atleast 230 ns (~4cycles at 16Mhz)
-	__delay_cycles(4);
+	//Hold for atleast 230 ns (~1cycle at 1Mhz)
+	__delay_cycles(4); //4 just to be safe
 
 	//Set Enable to output Logical LOW
 	P2OUT &= (~EN);
@@ -155,6 +236,23 @@ int lcd_isbusy() {
 }
 
 /*
+ * lcd_print(char* str) - print string to lcd
+ * 	param - c string of characters
+ * 	-note relies on \0 to know when string is done
+ */
+void lcd_print(char* str) {
+	int i = 0;
+	while (str[i] != '\0') {
+		//send over the data
+		lcd_dataWrite(str[i]);
+		//shift cursor to the right
+		lcd_instWrite(0x06);
+		//increment the pointer's address
+		i++;
+	}
+}
+
+/*
  * lcd_init - Do the init cycle for the display
  *	Gets the display into 2 line mode and sets up
  *	Everything else
@@ -167,32 +265,18 @@ void lcd_init() {
 	//send FunctionSet cmd with 2 line mode and display on (00 0011 11XX)
 	lcd_instWrite(0x3C);
 
-	//wait until device is ready for next command
-	while (lcd_isbusy() == true) {
-		;
-	}
-
 	//send Display ON/OFF command with display on, cursor on, blink on (00 0000 1111)
 	lcd_instWrite(0x0F);
-
-	//wait until device is ready for next command
-	while (lcd_isbusy() == true) {
-		;
-	}
 
 	//send DisplayClear cmd (00 0000 0001)
 	lcd_instWrite(0x01);
 
-	//wait until device is ready for next command
-	while (lcd_isbusy() == true) {
-		;
-	}
+	__delay_cycles(2000);
 
-	//send EntryModeSet cmd with increment on, entire shift on (00 0000 0111)
-	lcd_instWrite(0x07);
+	//send goHome cmd (00 0000 0010)
+	lcd_instWrite(0x02);
 
-	//wait until device is ready for next command
-	while (lcd_isbusy() == true) {
+	while(lcd_isbusy() == 1){
 		;
 	}
 }
